@@ -18,14 +18,23 @@ const missing = Object.entries({ FOODICS_CLIENT_ID, FOODICS_CLIENT_SECRET, FOODI
   .filter(([, v]) => !v).map(([k]) => k);
 
 const env = getEnv(FOODICS_ENV);
-const store = createStore();
+
+// Never crash on startup: a crash takes the whole page down on Vercel.
+// Collect setup problems and show them on the dashboard instead.
+const setupProblems = [];
+if (missing.length) setupProblems.push(`Missing environment variables: ${missing.join(', ')}`);
+let store = null;
+try { store = createStore(); } catch (e) { setupProblems.push(e.message); }
+
 const app = express();
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+app.get('/api/setup', (req, res) => res.json({ ok: setupProblems.length === 0, problems: setupProblems, env: FOODICS_ENV }));
+
 app.use((req, res, next) => {
-  if (missing.length && req.path !== '/') {
-    return res.status(500).json({ error: `Missing environment variables: ${missing.join(', ')}` });
+  if (setupProblems.length) {
+    return res.status(503).json({ error: 'App is not set up yet', problems: setupProblems });
   }
   next();
 });
@@ -149,4 +158,4 @@ app.post('/webhooks/foodics/:secret', express.raw({ type: '*/*', limit: '5mb' })
   res.sendStatus(200);
 });
 
-module.exports = { app, missing, storeKind: store.kind, FOODICS_ENV, WEBHOOK_SECRET };
+module.exports = { app, missing, storeKind: store ? store.kind : 'none', FOODICS_ENV, WEBHOOK_SECRET };

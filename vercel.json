@@ -1,6 +1,5 @@
 {
-  "rewrites": [
-    { "source": "/oauth/:path*", "destination": "/api" },
+  "rewrites": [    { "source": "/oauth/:path*", "destination": "/api" },
     { "source": "/webhooks/:path*", "destination": "/api" },
     { "source": "/api/:path*", "destination": "/api" }
   ]

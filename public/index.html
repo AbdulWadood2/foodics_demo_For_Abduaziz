@@ -75,6 +75,12 @@
   }
 
   async function init() {
+    const setup = await fetch('/api/setup').then(r => r.json()).catch(() => null);
+    if (setup && !setup.ok) {
+      document.getElementById('conn').textContent = 'Setup needed';
+      list.innerHTML = `<div class="event ready"><b>Setup needed</b><ul>${setup.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>See the README, "Deploy to Vercel".</div>`;
+      return;
+    }
     const c = await fetch('/api/connection').then(r => r.json());
     const conn = document.getElementById('conn');
     conn.textContent = c.connected ? `Connected (${c.env})${c.business ? ' · ' + c.business : ''}` : `Not connected (${c.env})`;
