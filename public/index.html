@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foodics Webhook Demo</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#6b7280; --line:#e5e7eb; --accent:#5b3fd6; --ok:#0f8a4f; --ready:#c2410c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 24px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0; flex:1; }
+  .btn { background:var(--accent); color:#fff; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:600; }
+  .pill { padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; background:#eee; }
+  .pill.on { background:#dcfce7; color:var(--ok); }
+  main { max-width:1000px; margin:0 auto; padding:24px 16px; }
+  .counts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .count { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:6px 10px; font-family:ui-monospace, Consolas, monospace; font-size:12px; }
+  .event { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:10px; }
+  .event.ready { border-color:var(--ready); box-shadow:0 0 0 1px var(--ready) inset; }
+  .event.new { animation:flash 1.5s ease-out; }
+  @keyframes flash { from { background:#fff7d6; } to { background:var(--card); } }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:baseline; }
+  .name { font-family:ui-monospace, Consolas, monospace; font-weight:700; color:var(--accent); }
+  .time { color:var(--muted); font-size:12px; margin-left:auto; }
+  .tag { font-size:12px; padding:2px 8px; border-radius:4px; background:#f1f5f9; }
+  .tag.ready { background:#ffedd5; color:var(--ready); font-weight:700; }
+  details { margin-top:8px; }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:6px; overflow:auto; max-height:360px; font-size:12px; }
+  .empty { color:var(--muted); text-align:center; padding:40px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Foodics Webhook Demo</h1>
+  <span id="conn" class="pill">checking…</span>
+  <a class="btn" href="/oauth/connect">Connect Foodics business</a>
+</header>
+<main>
+  <div class="counts" id="counts"></div>
+  <div id="events"><div class="empty">Waiting for webhooks from Foodics…</div></div>
+</main>
+<script>
+  const list = document.getElementById('events');
+  const counts = {};
+
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function renderCounts() {
+    document.getElementById('counts').innerHTML = Object.entries(counts)
+      .map(([k, v]) => `<span class="count">${esc(k)} × ${v}</span>`).join('');
+  }
+
+  function card(r, isNew) {
+    const s = r.summary;
+    counts[s.event] = (counts[s.event] || 0) + 1;
+    const statusChange = s.previousStatusLabel && s.previousStatusLabel !== s.statusLabel
+      ? `${esc(s.previousStatusLabel)} → ${esc(s.statusLabel)}` : esc(s.statusLabel || s.status || '–');
+    const el = document.createElement('div');
+    el.className = 'event' + (s.isReady ? ' ready' : '') + (isNew ? ' new' : '');
+    el.innerHTML = `
+      <div class="row">
+        <span class="name">${esc(s.event)}</span>
+        ${s.isReady ? '<span class="tag ready">ORDER READY</span>' : ''}
+        <span class="time">${new Date(r.receivedAt).toLocaleString()}</span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <span class="tag">order ${esc(s.reference || s.orderId || '–')}</span>
+        <span class="tag">status: ${statusChange}</span>
+        <span class="tag">delivery_status: ${esc(s.deliveryStatusLabel || s.deliveryStatus || '–')}</span>
+        ${s.business ? `<span class="tag">${esc(s.business)}</span>` : ''}
+      </div>
+      <details><summary>Raw payload</summary><pre>${esc(JSON.stringify(r.payload, null, 2))}</pre></details>`;
+    return el;
+  }
+
+  async function init() {
+    const c = await fetch('/api/connection').then(r => r.json());
+    const conn = document.getElementById('conn');
+    conn.textContent = c.connected ? `Connected (${c.env})${c.business ? ' · ' + c.business : ''}` : `Not connected (${c.env})`;
+    if (c.connected) conn.classList.add('on');
+
+    const events = await fetch('/api/events').then(r => r.json());
+    if (events.length) list.innerHTML = '';
+    events.slice().reverse().forEach(e => list.prepend(card(e, false)));
+    renderCounts();
+
+    const es = new EventSource('/api/stream');
+    es.onmessage = (m) => {
+      const r = JSON.parse(m.data);
+      if (list.querySelector('.empty')) list.innerHTML = '';
+      list.prepend(card(r, true));
+      renderCounts();
+    };
+  }
+  init();
+</script>
+</body>
+</html>
