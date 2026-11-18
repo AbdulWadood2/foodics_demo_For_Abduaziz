@@ -1,2 +1,2 @@
-// Vercel serverless entry: every request is routed here (see vercel.json).
-module.exports = require('../src/app').app;
+// Vercel serverless entry: requests are routed here (see vercel.json).
+module.exports = require('../src/app');

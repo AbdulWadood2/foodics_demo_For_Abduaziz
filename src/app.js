@@ -158,4 +158,9 @@ app.post('/webhooks/foodics/:secret', express.raw({ type: '*/*', limit: '5mb' })
   res.sendStatus(200);
 });
 
-module.exports = { app, missing, storeKind: store ? store.kind : 'none', FOODICS_ENV, WEBHOOK_SECRET };
+// Vercel's Express support loads this file directly and needs the app itself
+// as the export. Extra info for the local server rides along as properties.
+app.missing = missing;
+app.storeKind = store ? store.kind : 'none';
+app.foodicsEnv = FOODICS_ENV;
+module.exports = app;
