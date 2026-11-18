@@ -80,18 +80,22 @@
     conn.textContent = c.connected ? `Connected (${c.env})${c.business ? ' · ' + c.business : ''}` : `Not connected (${c.env})`;
     if (c.connected) conn.classList.add('on');
 
-    const events = await fetch('/api/events').then(r => r.json());
-    if (events.length) list.innerHTML = '';
-    events.slice().reverse().forEach(e => list.prepend(card(e, false)));
-    renderCounts();
+    await refresh(true);
+    setInterval(() => refresh(false), 3000);
+  }
 
-    const es = new EventSource('/api/stream');
-    es.onmessage = (m) => {
-      const r = JSON.parse(m.data);
-      if (list.querySelector('.empty')) list.innerHTML = '';
-      list.prepend(card(r, true));
-      renderCounts();
-    };
+  // Poll every 3 s (works on serverless hosts like Vercel).
+  const seen = new Set();
+  const key = (e) => e.receivedAt + '|' + e.summary.event + '|' + (e.summary.orderId || '');
+  async function refresh(first) {
+    let events;
+    try { events = await fetch('/api/events').then(r => r.json()); } catch { return; }
+    if (!Array.isArray(events)) return;
+    const fresh = events.filter(e => !seen.has(key(e))).reverse(); // oldest first
+    if (!fresh.length) return;
+    if (list.querySelector('.empty')) list.innerHTML = '';
+    for (const e of fresh) { seen.add(key(e)); list.prepend(card(e, !first)); }
+    renderCounts();
   }
   init();
 </script>
